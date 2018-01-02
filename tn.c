@@ -1,4 +1,4 @@
-#include <stdio.h>
+#include <unistd.h>
 
 int main(int argc, char *argv[]) {
 
@@ -6,7 +6,6 @@ int main(int argc, char *argv[]) {
     char last_char = 0;
     char buffer[4096];
     size_t n_rd, n_wr;
-    int char_written;
     char char_to_write;
     int remove_newline = 0;
 
@@ -18,46 +17,37 @@ int main(int argc, char *argv[]) {
     }
 
     for (;;) {
-        n_rd = fread(buffer, 1, sizeof(buffer), stdin);
-        if (n_rd > 0) {
-            if (remove_newline && has_last_char) {
-                char_written = fputc(last_char, stdout);
-                if (char_written == EOF) {
-                    perror("fputc");
-                    return 1;
-                }
-            }
-            has_last_char = 1;
-            last_char = buffer[n_rd - 1];
-            if (remove_newline) {
-                if (n_rd > 1) {
-                    n_wr = fwrite(buffer, 1, n_rd - 1, stdout);
-                    if (n_wr != n_rd - 1) {
-                        perror("fwrite");
-                        return 2;
-                    }
-                }
-            } else {
-                n_wr = fwrite(buffer, 1, n_rd, stdout);
-                if (n_wr != n_rd) {
-                    perror("fwrite");
-                    return 3;
-                }
+        n_rd = read(STDIN_FILENO, buffer, sizeof(buffer));
+        if (n_rd == 0) {
+            break;
+        }
+        if (remove_newline && has_last_char) {
+            n_wr = write(STDOUT_FILENO, &last_char, 1);
+            if (n_wr != 1) {
+                return 1;
             }
         }
-        if (feof(stdin)) {
-            break;
-        } else if (ferror(stdin)) {
-            perror("fread");
-            break;
+        has_last_char = 1;
+        last_char = buffer[n_rd - 1];
+        if (remove_newline) {
+            if (n_rd > 1) {
+                n_wr = write(STDOUT_FILENO, buffer, n_rd - 1);
+                if (n_wr != n_rd - 1) {
+                    return 2;
+                }
+            }
+        } else {
+            n_wr = write(STDOUT_FILENO, buffer, n_rd);
+            if (n_wr != n_rd) {
+                return 3;
+            }
         }
     }
 
     if (has_last_char && last_char != '\n') {
         char_to_write = remove_newline ? last_char : '\n';
-        char_written = fputc(char_to_write, stdout);
-        if (char_written == EOF) {
-            perror("fputc");
+        n_wr = write(STDOUT_FILENO, &char_to_write, 1);
+        if (n_wr != 1) {
             return 4;
         }
     }
